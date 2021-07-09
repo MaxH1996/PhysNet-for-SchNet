@@ -54,11 +54,13 @@ class PhysNet(nn.Module):
         g_ij = torch.einsum('ij,i->ij', phi_ij, fcut) 
         x = self.embedding(atomic_numbers)
         
-        summation = torch.zeros(x.shape)
+        summation = []
         
         for module in self.module:
             xo, x = module(x, g_ij, idx_i, idx_j, n_atoms)
-            summation = summation + xo 
+            summation.append(xo)
+        
+        out = torch.stack(summation).sum(0)
         
    
         return summation
