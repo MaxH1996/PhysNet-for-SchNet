@@ -111,20 +111,22 @@ class PhysNetInteraction(nn.Module):
         
         self.linear_f = nn.Linear(n_atom_basis, n_atom_basis) 
         self.linear_g = nn.Linear(n_rbf, n_atom_basis) 
-        self.linear_i = nn.Linear(n_atom_basis, n_atom_basis)
-        self.linear_j = nn.Linear(n_atom_basis, n_atom_basis)
         self.residual = nn.ModuleList(
             [
                Residual(n_atom_basis, activation) 
                for _ in range(n_interactions)
             ]
         )
-        self.sequential = nn.Sequential(
+        self.sequential_i = nn.Sequential(
                     activation(),
                     nn.Linear(n_atom_basis, n_atom_basis),
                     activation()
         )
-
+        self.sequential_j = nn.Sequential(
+                    activation(),
+                    nn.Linear(n_atom_basis, n_atom_basis),
+                    activation()
+        )
     def forward(
         self,
         x: torch.Tensor,
@@ -134,16 +136,29 @@ class PhysNetInteraction(nn.Module):
         n_atoms: int
     ):
         
-        x_i = x[idx_i]
         x_j = x[idx_j]
-        x = torch.rand(self.n_atom_basis)*x ## check this
-        
-        vp = self.sequential(x_j.float())*self.linear_g(g_ij.float())
-        vm = self.sequential(x_i)
-        v = snn.scatter_add(vm, idx_i, dim_size=n_atoms)
+        xp = torch.rand(self.n_atom_basis)*x ## check this
+        vp = self.sequential_j(x_j.float())*self.linear_g(g_ij.float())
+        vm = self.sequential_i(x)
+        v = snn.scatter_add(vp, idx_i, dim_size=n_atoms) + vm
         for module in self.residual:
             v = module(v)
         
         v = self.activation(v)
         
-        return x + self.linear_f(v)
+        return xp + self.linear_f(v)
+    
+class PhysNetCutOff(nn.Module):
+    
+    def __init__(self, cutoff: float):
+        super(PhysNetCutOff, self).__init__()
+        self.register_buffer("cutoff", torch.FloatTensor([cutoff]))
+
+    def forward(self, d_ij: torch.Tensor):
+
+
+        # Compute values of cutoff function
+        input_cut = 1 - 6*(d_ij/self.cutoff)**5 + 15*(d_ij/self.cutoff)**4 - 10*(d_ij/self.cutoff)**3
+        # Remove contributions beyond the cutoff radius
+        input_cut *= (d_ij < self.cutoff).float()
+        return input_cut
