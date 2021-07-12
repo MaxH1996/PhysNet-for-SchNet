@@ -63,4 +63,4 @@ class PhysNet(nn.Module):
         out = torch.stack(summation).sum(0)
         
    
-        return summation
+        return {"scalar_representation": out}
