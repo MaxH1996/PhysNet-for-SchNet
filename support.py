@@ -36,13 +36,16 @@ class Output(nn.Module):
         super(Output, self).__init__()
         self.activation = activation()
         self.linear = nn.Linear(n_atom_basis, n_atom_basis)
+        
         self.residual = nn.ModuleList(
             [
                Residual(n_atom_basis, activation) 
                for _ in range(n_output_residual)
             ]
         )
-        
+        # Initialization
+        self.linear.weight.data.fill_(0.)
+        self.linear.bias.data.fill_(0.)
     def forward(self,x):
         
         for module in self.residual:
@@ -91,7 +94,7 @@ class Module(nn.Module):
         x = self.interaction(x, g_ij, idx_i, idx_j, n_atoms)
         for module in self.residual:
             x = module(x)
-        return self.output(x), x
+        return self.output(x), x       
     
 class PhysNetInteraction(nn.Module):
 
@@ -111,6 +114,19 @@ class PhysNetInteraction(nn.Module):
         
         self.linear_f = nn.Linear(n_atom_basis, n_atom_basis) 
         self.linear_g = nn.Linear(n_rbf, n_atom_basis) 
+        self.linear_j = nn.Linear(n_atom_basis, n_atom_basis)
+        self.linear_i = nn.Linear(n_atom_basis, n_atom_basis)
+        
+        # Initialization
+        self.linear_g.weight.data.fill_(0.)
+        torch.nn.init.xavier_uniform_(self.linear_f.weight)
+        torch.nn.init.xavier_uniform_(self.linear_j.weight)
+        torch.nn.init.xavier_uniform_(self.linear_i.weight)
+        self.linear_j.bias.data.fill_(0.)
+        self.linear_i.bias.data.fill_(0.)
+        self.linear_f.bias.data.fill_(0.)
+        self.linear_g.bias.data.fill_(0.)
+        
         self.residual = nn.ModuleList(
             [
                Residual(n_atom_basis, activation) 
@@ -119,14 +135,16 @@ class PhysNetInteraction(nn.Module):
         )
         self.sequential_i = nn.Sequential(
                     activation(),
-                    nn.Linear(n_atom_basis, n_atom_basis),
+                    self.linear_i,
                     activation()
         )
         self.sequential_j = nn.Sequential(
                     activation(),
-                    nn.Linear(n_atom_basis, n_atom_basis),
+                    self.linear_j,
                     activation()
         )
+        
+        self.u = nn.Parameter(torch.ones(n_atom_basis, requires_grad=True))
     def forward(
         self,
         x: torch.Tensor,
@@ -137,7 +155,7 @@ class PhysNetInteraction(nn.Module):
     ):
         
         x_j = x[idx_j]
-        xp = torch.rand(self.n_atom_basis)*x ## check this
+        xp = self.u*x ## check this
         vp = self.sequential_j(x_j.float())*self.linear_g(g_ij.float())
         vm = self.sequential_i(x)
         v = snn.scatter_add(vp, idx_i, dim_size=n_atoms) + vm
@@ -162,3 +180,13 @@ class PhysNetCutOff(nn.Module):
         # Remove contributions beyond the cutoff radius
         input_cut *= (d_ij < self.cutoff).float()
         return input_cut
+    
+class SSP(nn.Module):
+    
+    def __init__(self, shift = 2.):
+        super(SSP, self).__init__()
+        self.register_buffer("shift", torch.FloatTensor([shift]))
+
+    def forward(self, inputs: torch.Tensor):
+        
+        return torch.log(torch.exp(inputs)+1) + torch.log(self.shift)
