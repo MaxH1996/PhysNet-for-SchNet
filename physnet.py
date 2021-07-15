@@ -60,7 +60,7 @@ class PhysNet(nn.Module):
             xo, x = module(x, g_ij, idx_i, idx_j, n_atoms)
             summation.append(xo)
         
-        out = torch.stack(summation).sum(0)
+        out = torch.stack(summation)
         
    
         return {"scalar_representation": out}
