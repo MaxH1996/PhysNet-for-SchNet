@@ -27,7 +27,8 @@ computes D4 dispersion energy
 HF      s6=1.00000000, s8=1.61679827, a1=0.44959224, a2=3.35743605
 '''
 class D4DispersionEnergy(nn.Module):
-    def __init__(self, cutoff=None, 
+    def __init__(self, 
+            cutoff=None, 
             s6=1.00000000, 
             s8=1.61679827, 
             a1=0.44959224, 
@@ -67,9 +68,10 @@ class D4DispersionEnergy(nn.Module):
         self.convert2Angstrom3 = Bohr**3
         self.convert2eVAngstrom6 = Hartree*Bohr**6 
         self.cutoff = cutoff
-        if self.cutoff is not None:
-            self.cutoff *= self.convert2Bohr
-            self.cuton = self.cutoff-Bohr
+        self.cuton = 0.25*cutoff
+#         if self.cutoff is not None:
+#             self.cutoff *= self.convert2Bohr
+#             self.cuton = self.cutoff-Bohr
         self.g_a = g_a
         self.g_c = g_c
         self.k2 = k2 
@@ -135,7 +137,8 @@ class D4DispersionEnergy(nn.Module):
         if idx_i.numel() == 0:
             zeros = rij.new_zeros(N)
             return zeros, zeros, zeros
-        rij = rij*self.convert2Bohr #convert distances to Bohr
+        #convert distances to Bohr
+        #rij = rij*self.convert2Bohr 
         Zi = Z[idx_i]
         Zj = Z[idx_j]
         #calculate coordination numbers
@@ -190,6 +193,7 @@ class D4DispersionEnergy(nn.Module):
         s8 = F.softplus(self._s8)
         edisp = -c6ij*(s6*oor6 + s8*sqrt_r4r2ij**2*oor8)*self.convert2eV
         if compute_atomic_quantities:
+            print('CAARE!!!!')
             alpha   = self.alpha[Z,:,0]
             polarizabilities = torch.sum(zeta * alpha,-1)*self.convert2Angstrom3
             refc6ii = refc6[Z,Z,:,:]

@@ -53,11 +53,13 @@ class Atomwise(nn.Module):
         self.module_dim = module_dim
         
         self.physnet_energy = PhysNetEnergy()
+        
 
     def forward(self, inputs: Dict[str, torch.Tensor]):
         
         if self.module_dim:
             inputs[self.outnet_input] = inputs[self.outnet_input].sum(0)
+            
         # predict atomwise contributions
         yi = inputs[self.outnet_input]
         yi = self.outnet(inputs[self.outnet_input])
