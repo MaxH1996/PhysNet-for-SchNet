@@ -1,0 +1,6 @@
+DATALOADER:0 TEST RESULTS
+{'test_loss': 0.0010990125592797995,
+ 'test_result_mae': 0.01450407039374113,
+ 'test_result_mse': 0.0010990125592797995}
+num_epochs: 330
+time: approx. 6H
