@@ -1,0 +1,96 @@
+run_dir: runs
+trainer:
+  _target_: pytorch_lightning.Trainer
+  gpus: 1
+  precision: 32
+  amp_backend: native
+  min_epochs: null
+  max_epochs: 100000
+  weights_summary: top
+  progress_bar_refresh_rate: 10
+  terminate_on_nan: true
+model:
+  representation:
+    _target_: schnetpack.representation.PhysNet
+    n_atom_basis: 128
+    n_interactions: 3
+    radial_basis:
+      _target_: schnetpack.nn.radial.RBF_PhysNet
+      n_rbf: 64
+      cutoff: 10.0
+    cutoff_fn:
+      _target_: schnetpack.nn.cutoff.PhysNetCutOff
+      cutoff: 10.0
+  _target_: schnetpack.model.PropertyModel
+  optimizer_cls: torch.optim.Adam
+  optimizer_args:
+    lr: 0.001
+    amsgrad: true
+  scheduler_cls: schnetpack.train.ReduceLROnPlateau
+  scheduler_monitor: val_loss
+  scheduler_args:
+    mode: min
+    factor: 0.5
+    patience: 50
+    min_lr: 1.0e-06
+    smoothing_factor: 0.8
+  output:
+    _target_: schnetpack.atomistic.Atomwise
+    n_in: 128
+    aggregation_mode: sum
+    module_dim: true
+  loss_fn:
+    _target_: torch.nn.MSELoss
+  metrics:
+    mae:
+      _target_: pytorch_lightning.metrics.MeanAbsoluteError
+    mse:
+      _target_: pytorch_lightning.metrics.MeanSquaredError
+  loss_weights: null
+  targets: energy_U0
+  properties: result
+  params_total: 810503
+  params_trainable: 810503
+  params_not_trainable: 0
+data:
+  _target_: schnetpack.datasets.QM9
+  datapath: /home/maxh/Documents/schnetpack/qm9.db
+  batch_size: 100
+  num_train: 110000
+  num_val: 10000
+  num_test: null
+  remove_uncharacterized: false
+  num_workers: 8
+  distance_unit: Ang
+  property_units:
+    energy_U0: eV
+  transforms:
+  - _target_: schnetpack.transform.SubtractCenterOfMass
+  - _target_: schnetpack.transform.RemoveOffsets
+    property: energy_U0
+    remove_atomrefs: true
+    remove_mean: true
+  - _target_: schnetpack.transform.TorchNeighborList
+    cutoff: 10.0
+  - _target_: schnetpack.transform.CastTo32
+callbacks:
+  model_checkpoint:
+    _target_: schnetpack.train.ModelCheckpoint
+    monitor: val_loss
+    save_top_k: 1
+    save_last: true
+    mode: min
+    verbose: false
+    dirpath: checkpoints/
+    filename: '{epoch:02d}'
+    inference_path: best_inference_model
+    save_as_torch_script: true
+  early_stopping:
+    _target_: pytorch_lightning.callbacks.EarlyStopping
+    monitor: val_loss
+    patience: 150
+    mode: min
+    min_delta: 0
+  lr_monitor:
+    _target_: pytorch_lightning.callbacks.LearningRateMonitor
+    logging_interval: epoch
